@@ -15,7 +15,7 @@ class AURA_API AAuraCharacterBase : public ACharacter,public IAbilitySystemInter
 
 public:
 	AAuraCharacterBase();
-
+	/**重写的是接口的函数*/
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;	
 	UAttributeSet* GetAttributeSet() const { return AttributeSet;}
 protected:
