@@ -19,7 +19,7 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;	
 	UAttributeSet* GetAttributeSet() const { return AttributeSet;}
 protected:
-	virtual void BeginPlay() override;
+	virtual void BeginPlay() override;//在ACharacter中是public属性
 	
 	UPROPERTY(EditAnywhere,Category = "Combat")
 	TObjectPtr<USkeletalMeshComponent> Weapon;
