@@ -25,7 +25,8 @@ public:
 	
 	UOverlayWidgetController* GetOverlayWidgetController(const FWidgetControllerParams& WCParams);
 	/**
-	 * 
+	 * ceate overlaywidget and overlaywidgetcontroller
+	 * call add to view port
 	 */
 	void InitOverlay(APlayerController* PC,APlayerState* PS,UAbilitySystemComponent* ASC,UAttributeSet* AS);
 protected:

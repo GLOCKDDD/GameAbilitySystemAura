@@ -24,6 +24,7 @@ private:
 	/**
 	 *将player state中相应的值赋值给character的ASC和AS指针
 	 *设置owner actor和avatar actor
+	 *call init overlay
 	 */
 	void InitAbilityActorInfo();
 };
