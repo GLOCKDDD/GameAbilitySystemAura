@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>虚幻引擎详细 Actor 复制流程（中文翻译）</title>
+  <style>
+    :root { color-scheme: light; --ink: #1c2630; --muted: #5f6b76; --line: #d6dde3; --brand: #1769aa; --surface: #f5f8fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; color: var(--ink); font-family: "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif; line-height: 1.75; }
+    .page { width: min(980px, calc(100% - 36px)); margin: 0 auto; padding: 52px 0 72px; }
+    header { border-bottom: 3px solid var(--brand); padding-bottom: 28px; margin-bottom: 38px; }
+    h1, h2 { line-height: 1.3; }
+    h1 { margin: 0 0 12px; font-size: 2rem; }
+    h2 { margin: 46px 0 18px; font-size: 1.45rem; color: #113e64; }
+    h3 { margin: 28px 0 10px; font-size: 1.1rem; }
+    p, li { font-size: 1rem; }
+    .summary { color: var(--muted); font-size: 1.08rem; margin: 0; }
+    .source { margin-top: 18px; font-size: .9rem; color: var(--muted); }
+    a { color: var(--brand); }
+    code { padding: .1em .35em; background: #edf2f5; border-radius: 3px; color: #9b2536; font-family: Consolas, "Cascadia Code", monospace; font-size: .9em; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; margin: 18px 0 28px; }
+    th, td { padding: 12px 14px; vertical-align: top; border: 1px solid var(--line); text-align: left; }
+    th { background: #eaf2f8; color: #113e64; }
+    ol, ul { padding-left: 1.65em; }
+    li + li { margin-top: 8px; }
+    .note { border-left: 4px solid #d69320; background: #fff9e9; padding: 14px 18px; margin: 22px 0; }
+    .paths { background: var(--surface); border: 1px solid var(--line); padding: 18px 22px; }
+    footer { margin-top: 54px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+    @media print { .page { width: auto; padding: 20px 0; } a { color: inherit; text-decoration: none; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>详细 Actor 复制流程</h1>
+      <p class="summary">对虚幻引擎低层 Actor 复制机制的详细说明。</p>
+      <p class="source">原始文档：<a href="https://dev.epicgames.com/documentation/unreal-engine/detailed-actor-replication-flow-in-unreal-engine?application_version=5.8">Detailed Actor Replication Flow in Unreal Engine（UE 5.8）</a></p>
+    </header>
+
+    <p><strong>Actor 复制（Actor Replication）</strong>是一个细致的多步骤过程：<strong>网络驱动器（Network Driver，Net Driver）</strong>负责确定哪些 Actor 要复制到哪些连接，以及它们的复制顺序。本文概述 Actor 的复制过程。</p>
+    <p>绝大部分 Actor 复制工作都在 <a href="https://dev.epicgames.com/documentation/unreal-engine/API/Runtime/Engine/Engine/UNetDriver/ServerReplicateActors?application_version=5.5"><code>UNetDriver::ServerReplicateActors</code></a> 函数中完成。服务器会先为每个客户端收集所有被判定为相关（relevant）的 Actor，然后发送自上次更新该已连接客户端以来发生变化的属性。接着，<a href="https://dev.epicgames.com/documentation/unreal-engine/API/Runtime/Engine/Engine/UActorChannel/ReplicateActor?application_version=5.5"><code>UActorChannel::ReplicateActor</code></a> 函数负责将 Actor 复制到特定通道时的具体细节。</p>
+
+    <h2>重要属性</h2>
+    <p>Actor 的更新存在既定流程，其中会调用特定的框架回调，并使用一些属性来判断某个 Actor 是否应在当前服务器 Tick 中复制。重要项目包括：</p>
+    <table>
+      <thead><tr><th>属性 / 回调</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>AActor::NetUpdateFrequency</code></td><td>决定 Actor 的复制频率。</td></tr>
+        <tr><td><code>AActor::PreReplication</code></td><td>在任何复制操作发生前调用。</td></tr>
+        <tr><td><code>AActor::bOnlyRelevantToOwner</code></td><td>为 <code>true</code> 时，该 Actor 只会复制给其所有者。</td></tr>
+        <tr><td><code>AActor::IsRelevancyOwnerFor</code></td><td>当 <code>bOnlyRelevantToOwner</code> 为 <code>true</code> 时，用于判断相关性。</td></tr>
+        <tr><td><code>AActor::IsNetRelevantFor</code></td><td>当 <code>bOnlyRelevantToOwner</code> 为 <code>false</code> 时，用于判断相关性。</td></tr>
+        <tr><td><code>AActor::NetDormancy</code></td><td>决定 Actor 处于休眠还是唤醒状态。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Actor 复制流程概览</h2>
+    <p>以下步骤构成 Actor 复制流程的高层概述：</p>
+    <ol>
+      <li>确定哪些 Actor 正在复制，并检查其休眠状态、更新频率和所属连接。</li>
+      <li>将通过检查的 Actor 加入“待考虑复制”列表。</li>
+      <li>遍历每个连接，并针对当前 Actor 与连接进行检查。此步骤结束后，每个连接都会得到一份待考虑复制的 Actor 列表。</li>
+      <li>为每个连接按优先级对 Actor 排序。</li>
+      <li>判断 Actor 是否与该连接相关。</li>
+      <li>将 Actor 复制到当前连接。</li>
+    </ol>
+    <p>以下章节将逐步详细说明上述流程。</p>
+
+    <h2>将 Actor 加入待考虑复制列表</h2>
+    <p>此步骤会先遍历所有 Actor，以检查是否对 Actor 调用了 <code>AActor::SetReplicates(true)</code>，从而确定哪些 Actor 正在主动复制。对于每个正在复制的 Actor，NetDriver 会执行以下检查：</p>
+    <ol>
+      <li>检查当前 Actor 是否处于初始休眠状态（<code>ENetDormancy::DORM_Initial</code>）。<br>若处于初始休眠状态，则跳过该 Actor。</li>
+      <li>检查 <code>AActor::NetUpdateFrequency</code> 的值，判断当前 Actor 是否需要更新。<br>若不需要更新，则跳过该 Actor。</li>
+      <li>如果 <code>AActor::bOnlyRelevantToOwner</code> 为 <code>true</code>，则通过对所属连接的 Viewer 调用 <code>AActor::IsRelevancyOwnerFor</code>，检查该 Actor 的所属连接是否相关。<br>若相关，则将其加入该连接的“所有者相关（owned relevant）”列表。此时，该 Actor 只会发送到一个连接。</li>
+      <li>对于通过这些初始检查的 Actor，调用 <code>AActor::PreReplication</code>。在 <code>AActor::PreReplication</code> 中，你可以决定是否让属性复制给特定连接。使用 <code>DOREPLIFETIME_ACTIVE_OVERRIDE</code> 宏，可精确控制 Actor 将复制到哪些连接。</li>
+    </ol>
+    <p>如果 Actor 通过以上所有检查，就将它加入待考虑复制列表。</p>
+
+    <h2>遍历每个连接</h2>
+    <p>接下来，系统会遍历每个连接；针对当前连接，逐一处理上一步待考虑复制列表中的每个 Actor，并执行以下检查和操作：</p>
+    <ol>
+      <li>通过 <code>AActor::NetDormancy</code> 判断当前 Actor 是否处于休眠状态。<br>如果此 Actor 对该连接而言处于休眠状态，则跳过它。</li>
+      <li>如果尚未存在通道：
+        <ul>
+          <li>判断客户端是否已加载当前 Actor 所在的关卡。</li>
+          <li>如果关卡尚未加载，则跳过该 Actor。</li>
+          <li>通过调用 <code>AActor::IsNetRelevantFor</code>，判断当前 Actor 是否与该连接相关。</li>
+          <li>如果 Actor 不相关，则跳过它。</li>
+        </ul>
+      </li>
+      <li>加入上文所述、位于连接“所有者相关”列表中的所有 Actor。至此，此连接将拥有一份既相关又非休眠的 Actor 列表。</li>
+    </ol>
+    <p>随后按优先级（<code>AActor::GetNetPriority</code>）从高到低对该列表排序。优先级排序十分重要：尤其在待处理 Actor 数量很大、连接可能饱和时，必须确保高优先级 Actor 先于低优先级 Actor 获得复制机会。</p>
+
+    <h2>遍历已排序的 Actor 列表</h2>
+    <p>对于该连接待考虑复制列表中的每个 Actor：</p>
+    <ol>
+      <li>如果该连接尚未加载此 Actor 所在的关卡，则关闭通道（如有），并继续处理下一个 Actor。</li>
+      <li>每隔 1 秒，通过 <code>AActor::IsNetRelevantFor</code> 判断该 Actor 是否仍与连接相关。<br>若持续 5 秒不相关，则关闭通道。</li>
+      <li>若相关且尚未打开通道，则打开一个通道。</li>
+      <li>如果该连接在任意时刻达到饱和：
+        <ul>
+          <li>对于剩余 Actor，若其相关时间不足 1 秒，则强制在下一 Tick 更新。</li>
+          <li>若其相关时间超过 1 秒，则调用 <code>AActor::IsNetRelevantFor</code>，以决定是否在下一 Tick 更新。</li>
+        </ul>
+      </li>
+      <li>对于通过以上所有检查的 Actor，调用 <code>UActorChannel::ReplicateActor</code>，将该 Actor 复制到连接。</li>
+    </ol>
+
+    <h3>控制每次调用处理的客户端数量</h3>
+    <p>可以通过多种方式控制 <code>UNetDriver::ServerReplicateActors</code> 每次调用复制到多少客户端：</p>
+    <ul>
+      <li><strong>引擎配置和命令行参数：</strong>启动项目时传入 <code>-limitclientticks</code> 命令行参数；在 <code>[/Script/Engine.Engine]</code> 引擎配置类别中修改 <code>NetClientTicksPerSecond</code> 的值。</li>
+      <li><strong>命令行参数：</strong>启动项目时传入 <code>-limitclientticks -ini:Engine:[/Script/Engine.Engine]:NetClientTicksPerSecond=&lt;VALUE&gt;</code>，其中 <code>&lt;VALUE&gt;</code> 是所需的每秒客户端 Tick 数。</li>
+      <li><strong>控制台变量：</strong>设置 <code>net.MaxConnectionsToTickPerServerFrame</code> 控制台变量。</li>
+    </ul>
+    <p>更多信息请参阅 <code>UNetDriver::ServerReplicateActors_PrepConnections</code>。</p>
+
+    <h2>将 Actor 复制到连接</h2>
+    <p><code>UActorChannel::ReplicateActor</code> 是将 Actor 及其所有组件复制到一个连接的主要方法，其流程大致如下：</p>
+    <ol>
+      <li>判断这是否是该 Actor 通道打开后的首次更新。</li>
+      <li>若是，则序列化所需的特定信息（初始位置、旋转等）。</li>
+      <li>判断该连接是否拥有此 Actor。</li>
+      <li>如果并非所有者，且该 Actor 的角色为 <code>ENetRole::ROLE_AutonomousProxy</code>，则将其降级为 <code>ENetRole::ROLE_SimulatedProxy</code>。</li>
+      <li>复制该 Actor 已发生变化的属性。</li>
+      <li>复制每个组件已发生变化的属性。</li>
+      <li>对于已删除的组件，发送特殊的删除命令。</li>
+    </ol>
+    <p>当 Actor 列表处理完毕，或通道达到饱和时，系统将转而处理下一个连接；此过程会重复进行，直到所有连接均完成更新。</p>
+
+    <h2>更多信息</h2>
+    <p>关于 Actor Replication 的更多信息，请参阅 Unreal Engine 源码中的以下头文件：</p>
+    <div class="paths">
+      <p><code>/Engine/Source/Runtime/Engine/Classes/Engine/NetDriver.h</code><br>包含 <code>UNetDriver::ServerReplicateActors</code> 的信息。</p>
+      <p><code>/Engine/Source/Runtime/Engine/Classes/GameFramework/Actor.h</code><br>包含 <code>AActor</code> 及其函数和属性的信息。</p>
+      <p><code>/Engine/Source/Runtime/Engine/Classes/Engine/ActorChannel.h</code><br>包含 <code>UActorChannel</code> 与 <code>UActorChannel::ReplicateActor</code> 的信息。</p>
+      <p><code>/Engine/Source/Runtime/Engine/Classes/Engine/EngineTypes.h</code><br>包含 <code>ENetRole</code>、<code>ENetDormancy</code> 等类型的信息。</p>
+    </div>
+
+    <footer>本文为 Epic Games 官方文档的非官方中文整理翻译，原文版权归 Epic Games 所有。翻译版本：2026-09-14。</footer>
+  </main>
+</body>
+</html>

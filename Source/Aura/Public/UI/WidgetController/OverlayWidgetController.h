@@ -20,8 +20,14 @@ class AURA_API UOverlayWidgetController : public UAuraWidgetController
 {
 	GENERATED_BODY()
 public:
+	/**
+	 * @brief initialize widget value
+	 */
 	virtual void BroadcastInitialValues() override;
-	
+
+	/**
+	 * @brief describe to attribute set
+	 */
 	virtual void BindCallbacksToDependencies() override;
 	
 	UPROPERTY(BlueprintAssignable,Category = "GAS|Attribute")
@@ -41,7 +47,6 @@ protected:
 	 * @brief 进行广播，通知控件
 	 * @param Data 新的数据
 	 */
-	//
 	void HealthChanged(const FOnAttributeChangeData& Data) const;
 	void MaxHealthChanged(const FOnAttributeChangeData& Data) const;
 	void ManaChanged(const FOnAttributeChangeData& Data) const;
