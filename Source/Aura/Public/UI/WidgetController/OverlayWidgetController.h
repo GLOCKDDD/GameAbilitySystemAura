@@ -43,6 +43,10 @@ public:
 	FOnMaxManaChangedSignature OnMaxManaChanged;
 	
 protected:
+	
+	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category = "Widget Data")
+	TObjectPtr<UDataTable> MessageWidgetDataTable;
+	
 	/**
 	 * @brief 进行广播，通知控件
 	 * @param Data 新的数据

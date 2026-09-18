@@ -26,5 +26,5 @@ private:
 	 *设置owner actor和avatar actor
 	 *call init overlay
 	 */
-	void InitAbilityActorInfo();
+	virtual void InitAbilityActorInfo() override;
 };
