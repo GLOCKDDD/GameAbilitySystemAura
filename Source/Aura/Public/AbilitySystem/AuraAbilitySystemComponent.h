@@ -9,23 +9,7 @@
 class UAuraUserWidget;
 DECLARE_MULTICAST_DELEGATE_OneParam(FEffectAssetTags, const FGameplayTagContainer&/*AssetTags*/);
 
-USTRUCT(BlueprintType)
-struct FUIWidgetRow:public FTableRowBase
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditAnywhere,BlueprintReadOnly)
-	FGameplayTag MessageTag = FGameplayTag();
-	
-	UPROPERTY(EditAnywhere,BlueprintReadOnly)
-	FText Message = FText();
-	
-	UPROPERTY(EditAnywhere,BlueprintReadOnly)
-	TSubclassOf<UAuraUserWidget> MessageWidge;
-	
-	UPROPERTY(EditAnywhere,BlueprintReadOnly)
-	UTexture2D* Image = nullptr;
-};
+
 
 /**
  * 

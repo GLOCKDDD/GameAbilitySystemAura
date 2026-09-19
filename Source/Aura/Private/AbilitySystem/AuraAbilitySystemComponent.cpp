@@ -17,5 +17,4 @@ void UAuraAbilitySystemComponent::EffectApplied(UAbilitySystemComponent* Ability
 	EffectAssetTags.Broadcast(TagContainer);
 	
 	
-	GEngine->AddOnScreenDebugMessage(1,8.f,FColor::Blue,FString("Effect Applied"));
 }
