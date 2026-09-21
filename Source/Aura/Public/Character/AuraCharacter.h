@@ -7,7 +7,7 @@
 #include "AuraCharacter.generated.h"
 
 /**
- * 
+ *           
  */
 UCLASS()
 class AURA_API AAuraCharacter : public AAuraCharacterBase
@@ -20,6 +20,12 @@ public:
 	 * 当PlayerState复制时被触发
 	 */
 	virtual void OnRep_PlayerState() override;
+	
+	/** Combat Interface*/
+	
+	virtual int32 GetPlayerLevel() override;
+	
+	/** End Combat Interface*/
 private:
 	/**
 	 *将player state中相应的值赋值给character的ASC和AS指针

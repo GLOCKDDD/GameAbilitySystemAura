@@ -51,6 +51,7 @@ public:
 	 */
 	virtual void BindCallbacksToDependencies() override;
 	
+	/** delegetas */
 	UPROPERTY(BlueprintAssignable,Category = "GAS|Attribute")
 	FOnVitalAttributeChangedSignature OnHealthChanged;
 	
@@ -65,6 +66,7 @@ public:
 	
 	UPROPERTY(BlueprintAssignable,Category = "GAS|Messages")
 	FMessageWidgetRowSignature MessageWidgetRow;
+	/** delegetas end*/
 protected:
 	
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category = "Widget Data")
