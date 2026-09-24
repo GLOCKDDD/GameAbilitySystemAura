@@ -8,9 +8,9 @@
 #include "UI/HUD/AuraHUD.h"
 #include "UI/WidgetController/AuraWidgetController.h"
 
-UOverlayWidgetController* UAuraAbilitySystemLibrary::GetOverlayWidgetController(const UObject* WorldContextObejct)
+UOverlayWidgetController* UAuraAbilitySystemLibrary::GetOverlayWidgetController(const UObject* WorldContextObject)
 {
-	 if (APlayerController* PC = UGameplayStatics::GetPlayerController(WorldContextObejct,0))
+	 if (APlayerController* PC = UGameplayStatics::GetPlayerController(WorldContextObject,0))
 	 {
 		 if (AAuraHUD* AuraHUD = Cast<AAuraHUD>(PC->GetHUD()))
 		 {
@@ -21,5 +21,21 @@ UOverlayWidgetController* UAuraAbilitySystemLibrary::GetOverlayWidgetController(
 		 	return AuraHUD->GetOverlayWidgetController(WidgetControllerParams);
 		 }
 	 }
+	return nullptr;
+}
+
+UAttributeMenuWidgetController* UAuraAbilitySystemLibrary::GetAttributeMenuController(const UObject* WorldContextObject)
+{
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(WorldContextObject,0))
+	{
+		if (AAuraHUD* AuraHUD = Cast<AAuraHUD>(PC->GetHUD()))
+		{
+			AAuraPlayerState* PS = PC->GetPlayerState<AAuraPlayerState>();
+			UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
+			UAttributeSet* AS = PS->GetAttributeSet();
+			const FWidgetControllerParams WidgetControllerParams(PC,PS,ASC,AS);
+			return AuraHUD->GetAttributeMenuController(WidgetControllerParams);
+		}
+	}
 	return nullptr;
 }
